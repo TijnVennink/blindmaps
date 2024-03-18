@@ -117,8 +117,15 @@ x = np.arange(0, mu[0]*2, step_size)
 y = np.arange(0, mu[1]*2, step_size)
 X, Y = np.meshgrid(x, y)
 
+
+heightmap = np.zeros((60,40))
 # Compute heightmap
-heightmap = gaussian(X.T, Y.T)
+for i in range(len(coordinates) - 1):
+    dif = np.array(coordinates[i]) - np.array(coordinates[i+1])
+    grad = dif / np.linalg.norm(dif)
+    for j in range(int(np.linalg.norm(dif)/10)):
+        heightmap += gaussian(X.T, Y.T, coordinates[i] + j * - grad * 10)
+
 '''*********** !Student should fill in ***********'''
 
 
