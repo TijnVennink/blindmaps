@@ -98,7 +98,7 @@ cYellow = (255,255,0)
 
 ##Compute the height map and the gradient along x and y
 def gaussian(x, y, mu=[300, 200], sigma=100):
-    return sigma * np.exp(-(1/2) * ((x - mu[0])**2/(sigma**2) + (y - mu[1])**2/(sigma**2)))
+    return sigma * -np.exp(-10 * ((x - mu[0])**2/(sigma**2) + (y - mu[1])**2/(sigma**2)))
 
 def gradient(x, y, mu=[300, 200], sigma=100):
     dx = -(x - mu[0])/(sigma**2) * gaussian(x, y)
@@ -108,6 +108,9 @@ def gradient(x, y, mu=[300, 200], sigma=100):
 # Set parameters
 mu = [300, 200]
 step_size = 10
+
+# Set path coordinate
+coordinates = [(100,100),(400,100),(400,200),(200,200),(200,300),(500,300)]
 
 # Generate grid
 x = np.arange(0, mu[0]*2, step_size)
@@ -379,8 +382,13 @@ while run:
             pygame.draw.rect(screenVR, color, (y*10 , x*10 , 10, 10))
 
     
+    # Draw coordinate points
     
+    def draw_points(coordinates, color=(255, 0, 0), radius=5):
+        for coord in coordinates:
+            pygame.draw.circle(screenVR, color, coord, radius)
     
+    draw_points(coordinates)
     
     
     ### Use pygame.draw.rect(screenVR, color, rectangle) to render rectangles. 
