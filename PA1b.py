@@ -35,17 +35,16 @@ e-mail: {m.wiertlewski,l.willemet,m.a.a.atalla}@tudelft.nl
 """
 
 
-import pygame
-import numpy as np
-import math
-import matplotlib.pyplot as plt
-from pantograph import Pantograph
-from pyhapi import Board, Device, Mechanisms
-from pshape import PShape
-import sys, serial, glob
-from serial.tools import list_ports
 import time
 
+import numpy as np
+import pygame
+import serial
+from serial.tools import list_ports
+
+from pantograph import Pantograph
+from pshape import PShape
+from pyhapi import Board, Device, Mechanisms
 
 ##################### General Pygame Init #####################
 ##initialize pygame window
@@ -97,10 +96,14 @@ cYellow = (255,255,0)
 
 
 ##Compute the height map and the gradient along x and y
-def gaussian(x, y, mu=[300, 200], sigma=100):
+def gaussian(x, y, mu=None, sigma=100):
+    if mu is None:
+        mu = [300, 200]
     return sigma * -np.exp(-10 * ((x - mu[0])**2/(sigma**2) + (y - mu[1])**2/(sigma**2)))
 
-def gradient(x, y, mu=[300, 200], sigma=100):
+def gradient(x, y, mu=None, sigma=100):
+    if mu is None:
+        mu = [300, 200]
     dx = -(x - mu[0])/(sigma**2) * gaussian(x, y)
     dy = -(y - mu[1])/(sigma**2) * gaussian(x, y)
     return np.array([dx, dy])
@@ -117,14 +120,25 @@ x = np.arange(0, mu[0]*2, step_size)
 y = np.arange(0, mu[1]*2, step_size)
 X, Y = np.meshgrid(x, y)
 
+heightmap = np.ones((60,40))
 
-heightmap = np.zeros((60,40))
 # Compute heightmap
 for i in range(len(coordinates) - 1):
     dif = np.array(coordinates[i]) - np.array(coordinates[i+1])
     grad = dif / np.linalg.norm(dif)
     for j in range(int(np.linalg.norm(dif)/10)):
         heightmap += gaussian(X.T, Y.T, coordinates[i] + j * - grad * 10)
+
+def compute_gradient_at_position(pos, heightmap):
+    # position to heightmap grid indices
+    ix, iy = int(pos[0] // step_size), int(pos[1] // step_size)
+    ix = max(min(ix, heightmap.shape[0] - 2), 1)
+    iy = max(min(iy, heightmap.shape[1] - 2), 1)
+    # calculate gradient components
+    dx = (heightmap[ix + 1, iy] - heightmap[ix - 1, iy]) / (2 * step_size)
+    dy = (heightmap[ix, iy + 1] - heightmap[ix, iy - 1]) / (2 * step_size)
+    # print(f'gradient at current position(dx, dy): ({dx:.3f}, {dy:.3f})')
+    return np.array([dx, dy])
 
 '''*********** !Student should fill in ***********'''
 
@@ -294,25 +308,17 @@ while run:
     #fe += spring_force
 
     # Step 2: Damping and Masses
-    b_virtual = 0.8  # Virtual damping coefficient
+    b_virtual = 5  # Virtual damping coefficient
     velocity_estimate = (np.array(xh) - np.array(xhold)) / FPS  # Estimate velocity
     damping_force = -b_virtual * velocity_estimate  # Calculate the force applied on the device by the damper based on velocity estimations
     fe += damping_force
     
     # Step 3: Virtual Shapes
-    k_field = 10  # Field stiffness coefficient, this simulate a bump, change the value to be negative to simulate a hole
+    k_field = 0.25 #field stiffness coefficient
 
-    if heightmapToggle:
-        gradient_x, gradient_y = gradient(xh[0], xh[1])  # Calculate gradient
-        virtual_shapes_force = k_field * np.array([gradient_x, gradient_y])  # Calculate the force applied on the device by the virtual shapes
-        fe += virtual_shapes_force
-    
-    ##Step 4 Virtual wall 
-    
-    ##Step 5 Bonus: Friction
-    
-   
-
+    # calculate(based on gradient and add force)
+    fe_shape = k_field * compute_gradient_at_position(xh, heightmap)
+    fe += fe_shape
     '''*********** !Student should fill in ***********'''
     ##Update old samples for velocity computation
     xhold = xh
@@ -388,9 +394,7 @@ while run:
             color = height_to_color(height)
             pygame.draw.rect(screenVR, color, (y*10 , x*10 , 10, 10))
 
-    
     # Draw coordinate points
-    
     def draw_points(coordinates, color=(255, 0, 0), radius=5):
         for coord in coordinates:
             pygame.draw.circle(screenVR, color, coord, radius)
