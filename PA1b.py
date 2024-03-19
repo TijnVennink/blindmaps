@@ -88,48 +88,87 @@ cYellow = (255,255,0)
 
 ##################### Init Simulated haptic device #####################
 
-'''*********** Student should fill in ***********'''
-####Virtual environment -  Wall
+#### Functions for heighmap generation and gradient calculations ####
 
+def gaussian(x, y, mu, sigma=100):
+    """
+    Compute the value of a 2D Gaussian function at given coordinates.
 
-####Virtual environment -  Force fieldToggle f(x,y)
+    Parameters:
+        x (float or ndarray): x-coordinate(s) of the point(s) where to evaluate the Gaussian.
+        y (float or ndarray): y-coordinate(s) of the point(s) where to evaluate the Gaussian.
+        mu (tuple): Mean of the Gaussian function in the form (mu_x, mu_y).
+        sigma (float, optional): Standard deviation of the Gaussian. Defaults to 100.
 
-
-##Compute the height map and the gradient along x and y
-def gaussian(x, y, mu=None, sigma=100):
-    if mu is None:
-        mu = [300, 200]
+    Returns:
+        float or ndarray: Value(s) of the Gaussian function at the given coordinates.
+    """
     return sigma * -np.exp(-10 * ((x - mu[0])**2/(sigma**2) + (y - mu[1])**2/(sigma**2)))
 
-def gradient(x, y, mu=None, sigma=100):
-    if mu is None:
-        mu = [300, 200]
-    dx = -(x - mu[0])/(sigma**2) * gaussian(x, y)
-    dy = -(y - mu[1])/(sigma**2) * gaussian(x, y)
-    return np.array([dx, dy])
+def generate_heightmaps(step_size, coordinates):
+    """
+    Generate a detailed and lower-resolution heightmap based on given coordinates.
 
-# Set parameters
-mu = [300, 200]
-step_size = 10
+    Parameters:
+        step_size (int): Step size for generating the grid.
+        coordinates (list): List of coordinate tuples defining the path.
 
-# Set path coordinate
-coordinates = [(100,100),(400,100),(400,200),(200,200),(200,300),(500,300)]
+    Returns:
+        tuple: A tuple containing detailed heightmap and lower resolution heightmap.
+    """
+    # Generate grid
+    x = np.arange(0, 600, step_size)
+    y = np.arange(0, 400, step_size)
+    X, Y = np.meshgrid(x, y)
 
-# Generate grid
-x = np.arange(0, mu[0]*2, step_size)
-y = np.arange(0, mu[1]*2, step_size)
-X, Y = np.meshgrid(x, y)
+    heightmap = np.ones((600,400))
 
-heightmap = np.ones((60,40))
+    # Compute heightmap
+    for i in range(len(coordinates) - 1):
+        dif = np.array(coordinates[i]) - np.array(coordinates[i+1])
+        grad = dif / np.linalg.norm(dif)
+        for j in range(int(np.linalg.norm(dif)/10) - 1):
+            heightmap += gaussian(X.T, Y.T, coordinates[i] + j * - grad * 10)
 
-# Compute heightmap
-for i in range(len(coordinates) - 1):
-    dif = np.array(coordinates[i]) - np.array(coordinates[i+1])
-    grad = dif / np.linalg.norm(dif)
-    for j in range(int(np.linalg.norm(dif)/10)):
-        heightmap += gaussian(X.T, Y.T, coordinates[i] + j * - grad * 10)
+    lower_res_heightmap = lower_resolution(heightmap, 10)
+    
+    return heightmap, lower_res_heightmap
 
-def compute_gradient_at_position(pos, heightmap):
+def lower_resolution(array, factor):
+    """
+    Lower the resolution of a 2D array by averaging values within blocks.
+
+    Parameters:
+        array (ndarray): The input 2D array.
+        factor (int): The factor by which to reduce the resolution.
+
+    Returns:
+        ndarray: Lower resolution 2D array.
+    """
+    # Determine the new shape of the array
+    new_shape = (array.shape[0] // factor, array.shape[1] // factor)
+    
+    # Reshape the array into blocks of size (factor, factor)
+    reshaped_array = array[:new_shape[0]*factor, :new_shape[1]*factor].reshape(
+        new_shape[0], factor, new_shape[1], factor)
+    
+    # Take the average within each block to reduce resolution
+    lower_res_array = reshaped_array.mean(axis=(1, 3))
+    
+    return lower_res_array
+
+def compute_gradient_at_position(pos, heightmap, step_size):
+    """
+    Compute the gradient at a given position on a heightmap.
+
+    Parameters:
+        pos (tuple): Position coordinates (x, y) where gradient needs to be computed.
+        heightmap (ndarray): 2D array representing the heightmap.
+        step_size (int): Step size used in generating the heightmap.
+
+    Returns:
+        ndarray: Array containing the gradient components (dx, dy) at the given position.
+    """
     # position to heightmap grid indices
     ix, iy = int(pos[0] // step_size), int(pos[1] // step_size)
     ix = max(min(ix, heightmap.shape[0] - 2), 1)
@@ -139,6 +178,17 @@ def compute_gradient_at_position(pos, heightmap):
     dy = (heightmap[ix, iy + 1] - heightmap[ix, iy - 1]) / (2 * step_size)
     # print(f'gradient at current position(dx, dy): ({dx:.3f}, {dy:.3f})')
     return np.array([dx, dy])
+
+#### Set up for heighmap generation ####
+ 
+# Set parameters
+step_size = 1
+
+# Set path coordinate
+coordinates = [(100,100),(400,100),(400,200),(200,200),(200,300),(500,300)]
+
+heightmap, lower_res_heightmap = generate_heightmaps(step_size, coordinates)
+
 
 '''*********** !Student should fill in ***********'''
 
@@ -317,7 +367,7 @@ while run:
     k_field = 0.25 #field stiffness coefficient
 
     # calculate(based on gradient and add force)
-    fe_shape = k_field * compute_gradient_at_position(xh, heightmap)
+    fe_shape = k_field * compute_gradient_at_position(xh, heightmap, step_size)
     fe += fe_shape
     '''*********** !Student should fill in ***********'''
     ##Update old samples for velocity computation
@@ -377,9 +427,9 @@ while run:
     color_max = (0, 255, 0)  # Green
     
     # Normalize the heightmap values to the range [0, 1]
-    min_height = min(map(min, heightmap))
-    max_height = max(map(max, heightmap))
-    normalized_heightmap = [[(height - min_height) / (max_height - min_height) for height in row] for row in heightmap]
+    min_height = min(map(min, lower_res_heightmap))
+    max_height = max(map(max, lower_res_heightmap))
+    normalized_heightmap = [[(height - min_height) / (max_height - min_height) for height in row] for row in lower_res_heightmap]
 
     # Function to convert a normalized height to a color
     def height_to_color(height):
