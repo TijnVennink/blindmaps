@@ -4,6 +4,7 @@ import numpy as np
 import pygame
 import serial
 import random
+import matplotlib.pyplot as plt
 
 from serial.tools import list_ports
 from pantograph import Pantograph
@@ -133,7 +134,7 @@ def generate_random_heighmaps():
     return environments
 
 
-def main(environment):
+def main(environment, perturbations=False):
     """
     Main function to initialize and run the virtual haptic device simulation.
 
@@ -176,7 +177,6 @@ def main(environment):
 
     ##initialize "real-time" clock
     clock = pygame.time.Clock()
-    FPS = 100   #in Hertz
 
     ##define some colors
     cWhite = (255,255,255)
@@ -269,10 +269,19 @@ def main(environment):
     fieldToggle = True
     robotToggle = True
     heightmapToggle = True
+    recordingToggle = False
+    state = [] # state vector
 
     debugToggle = False
 
     depth, heightmap, lower_res_heightmap, coordinates = environment
+    
+    t = 0.0 # time
+    
+    # SIMULATION PARAMETERS
+    dt = 0.01 # intergration step timedt = 0.01 # integration step time
+    dts = dt*1 # desired simulation step time (NOTE: it may not be achieved)
+    FPS = int(1/dts) # refresh rate
     
     while run:
         #########Process events  (Mouse, Keyboard etc...)#########
@@ -293,6 +302,9 @@ def main(environment):
                 ##Toggle the wall or the height map
                 if event.key == ord('h'):
                     heightmapToggle = not heightmapToggle
+                    
+                if event.key == ord('p'):
+                    recordingToggle = not recordingToggle
 
                 '''*********** !Student can add more ***********'''
 
@@ -328,26 +340,28 @@ def main(environment):
         ##Replace 
         
         ######### Compute forces ########
-        
-        # Step 1: Elastic Impedance
-        center = [xc, yc]  # Center coordinates
-        k_virtual = 0.05  # Virtual stiffness coefficient
-        spring_force = -k_virtual * (np.array(center) - np.array(xh))  # Calculate the force applied on the device by the spring
-        #fe += spring_force
 
-        # Step 2: Damping and Masses
+        # Damping
         b_virtual = 5  # Virtual damping coefficient
         velocity_estimate = (np.array(xh) - np.array(xhold)) / FPS  # Estimate velocity
         damping_force = -b_virtual * velocity_estimate  # Calculate the force applied on the device by the damper based on velocity estimations
         fe += damping_force
         
-        # Step 3: Virtual Shapes
+        # Virtual Shapes
         k_field = 0.25 #field stiffness coefficient
 
         # calculate(based on gradient and add force)
         fe_shape = k_field * compute_gradient_at_position(xh, heightmap)
         fe += fe_shape
+        
+        if perturbations:
+            #add perturbation force here
+            pass
         '''*********** !Student should fill in ***********'''
+        if recordingToggle:
+            # log states for analysis
+            state.append([t, xh[0], xh[1]])
+        
         ##Update old samples for velocity computation
         xhold = xh
         xmold = xm    
@@ -429,6 +443,9 @@ def main(environment):
         
         draw_points(coordinates)
         
+        # Draw perturbations area
+        if perturbations:
+            pass
         
         ### Use pygame.draw.rect(screenVR, color, rectangle) to render rectangles. 
         pygame.draw.rect(screenVR, colorHaptic, haptic, border_radius=8)
@@ -458,14 +475,44 @@ def main(environment):
 
     pygame.display.quit()
     pygame.quit()
-
-
+    
+    
+    state = np.array(state)
+    coordinates = np.array(coordinates)
+    return state, coordinates
 
 
 if __name__ == "__main__":
     
     environments = generate_random_heighmaps()
-    
+    data = list()
     for environment in environments:
-        main(environment)
+        state, coordinates = main(environment)
+        data.append((state, coordinates))
+        
+    for environment in environments:
+        state, coordinates = main(environment, perturbations=True)
+        data.append((state, coordinates))
+        
+    # Create a figure and 6 subplots arranged in a 3 column, 2 row format
+    fig, axs = plt.subplots(2, 3, figsize=(12, 8))
     
+    # Plot data on each subplot
+    for d in range(len(data)):
+        for i in range(len(data[d][1]) - 1):
+            axs[d//3, d%3].plot(data[d][1][i:i + 2, 0], data[d][1][i:i + 2, 1], "red", label="Segment" if i == 0 else None)
+        if data[d][0].size != 0:
+            axs[d//3, d%3].plot(data[d][0][:, 1], data[d][0][:, 2], "lime", label="CONTROLLER")
+        else:
+            axs[d//3, d%3].plot(300, 200, "lime", label="CONTROLLER")
+        axs[d//3, d%3].axis('equal')
+        axs[d//3, d%3].set_xlabel("x")
+        axs[d//3, d%3].set_ylabel("y [m")
+        axs[d//3, d%3].legend()
+        axs[d//3, d%3].set_title(f'Plot {d}')
+    
+    # Adjust layout
+    plt.tight_layout()
+
+    # Show plot
+    plt.show()
