@@ -117,45 +117,34 @@ def generate_random_heighmaps():
               - list: Coordinates defining the boundaries of the environment.
     """
     coordinates_1 = [(100,100),(400,100),(400,200),(200,200),(200,300),(500,300)]
-    coordinates_2 = [(100,100),(400,100),(400,200),(200,200),(200,300),(500,300)]  # placeholder
-    coordinates_3 = [(100,100),(400,100),(400,200),(200,200),(200,300),(500,300)]  # placeholder
+    coordinates_2 = [(100,100),(100,300),(300,300),(300,100),(500,100),(500,350)]
+    coordinates_3 = [(100,100),(500,100),(500,350),(100,350),(100,200),(250,200)]
+
 
     coord_list = [coordinates_1, coordinates_2, coordinates_3]
 
     depth_list = [100, 50, 20]  # to change
-
     environments = []
 
-    randomness = random.randint(0, 2)
+
+
     for i in range(3):
-        depth = depth_list[(i + randomness) % len(depth_list)]
-        heightmap, lower_res_heightmap = generate_heightmaps(coord_list[i], depth)
-        environments.append((depth, heightmap, lower_res_heightmap, coord_list[i]))
+        randomness_depth_i = random.randint(0, 2)
+        randomness_coord_i = random.randint(0, 2)
+        depth = depth_list[randomness_depth_i]
+        heightmap, lower_res_heightmap = generate_heightmaps(coord_list[randomness_coord_i], depth)
+        environments.append((depth, heightmap, lower_res_heightmap, coord_list[randomness_coord_i], randomness_coord_i))
 
     return environments
 
-def save_to_csv_old(folder, subject_id, run_i, state, coordinates, perturbed=False):
-    # Prepare the data for CSV
-    rows = [[state] + list(coord) for coord in coordinates]  # Assuming coordinates is a list of tuples/lists
-    df = pd.DataFrame(rows, columns=['State', 'X Coordinate', 'Y Coordinate'])
-
-    # Determine filename
-    perturbation_status = "perturbed" if perturbed else "normal"
-    file_name = f'subject_{subject_id}_run_{run_i}_{perturbation_status}.csv'
-    path = folder +'/' + file_name
-
-    # Save to CSV
-    df.to_csv(path, index=False)
-    print(f'Data saved to {path}')
-
-def save_to_csv(subject_id, run_i, state, perturbed=False):
+def save_to_csv(subject_id, run_i, state, depth, coordinates_index, perturbed=False):
     # Prepare the data for CSV
     # Assuming state is a list of [t, xh[0], xh[1]] for each timestep
     df = pd.DataFrame(state, columns=['t', 'xh[0]', 'xh[1]'])
 
     # Determine filename
     perturbation_status = "perturbed" if perturbed else "normal"
-    file_name = f'subject_{subject_id}_run_{run_i}_{perturbation_status}.csv'
+    file_name = f'subject_{subject_id}_run_{run_i}_dept_{depth}_coordinates_{coordinates_index}_{perturbation_status}.csv'
     path = folder + '/' + file_name
 
     # Save to CSV
@@ -303,7 +292,7 @@ def main(environment, perturbations=False):
 
     debugToggle = False
 
-    depth, heightmap, lower_res_heightmap, coordinates = environment
+    depth, heightmap, lower_res_heightmap, coordinates, coordinates_index = environment
     
     t_start = pygame.time.get_ticks() # time
     
@@ -509,7 +498,7 @@ def main(environment, perturbations=False):
     
     state = np.array(state)
     coordinates = np.array(coordinates)
-    return state, coordinates
+    return state, coordinates, depth, coordinates_index
 
 
 if __name__ == "__main__":
@@ -521,18 +510,35 @@ if __name__ == "__main__":
     folder = f'data_recordings'
 
     for environment in environments:
-        run_i += 1
-        state, coordinates = main(environment)
-        data.append((state, coordinates))
-        # save_to_csv(folder, subject_id, run_i, state, coordinates)
-        save_to_csv(subject_id, run_i, state)
+        recorded = False
+        while not recorded:
+            state, coordinates, depth, coordinates_index = main(environment)
+            # save_to_csv(folder, subject_id, run_i, state, coordinates)
+            if len(state) != 0:
+                data.append((state, coordinates))
+                recorded = True
+                run_i += 1
+                save_to_csv(subject_id, run_i, state, depth, coordinates_index, False)
+            else:
+                print('nothing recorded(didnt press p), please try again')
+                print('lets try again!')
+                continue
+
         
     for environment in environments:
-        run_i += 1
-        state, coordinates = main(environment, perturbations=True)
-        data.append((state, coordinates))
-        # save_to_csv(folder, subject_id, run_i, state, coordinates, perturbed=True)
-        save_to_csv(subject_id, run_i, state, True)
+        recorded = False
+        while not recorded:
+            state, coordinates, depth, coordinates_index = main(environment, perturbations=True)
+            # save_to_csv(folder, subject_id, run_i, state, coordinates)
+            if len(state) != 0:
+                data.append((state, coordinates))
+                recorded = True
+                run_i += 1
+                save_to_csv(subject_id, run_i, state, depth, coordinates_index, True)
+            else:
+                print('nothing recorded(didnt press p), please try again')
+                print('lets try again!')
+                continue
         
     # Create a figure and 6 subplots arranged in a 3 column, 2 row format
     fig, axs = plt.subplots(2, 3, figsize=(12, 8))
