@@ -12,9 +12,72 @@ from pantograph import Pantograph
 from pshape import PShape
 from pyhapi import Board, Device, Mechanisms
 
-##################### Init Simulated haptic device #####################
+# Functions for heightmap generation and gradient calculations
 
-#### Functions for heighmap generation and gradient calculations ####
+class PerturbationArea(pygame.Rect):
+    """
+    A class to represent a perturbation area in a pygame environment.
+
+    Attributes:
+        mode (int): The mode determining the type of perturbation behavior.
+    """
+
+    def __init__(self, x, y, height, width, mode):
+        """
+        Initializes the PerturbationArea object.
+
+        Args:
+            x (int): The x-coordinate of the top-left corner of the perturbation area.
+            y (int): The y-coordinate of the top-left corner of the perturbation area.
+            height (int): The height of the perturbation area.
+            width (int): The width of the perturbation area.
+            mode (int): The mode determining the type of perturbation behavior.
+        """
+        super().__init__(x, y, width, height)
+        self.mode = mode
+        
+    def apply_force(self, haptic, t):
+        """
+        Computes the force applied during interaction with the haptic object.
+
+        Args:
+            haptic (pygame.Rect): The rectangle representing the haptic object.
+            t (float): The current time.
+
+        Returns:
+            numpy.ndarray: The force applied during the interaction.
+        """
+        F = np.array([0, 0])
+        if haptic.colliderect(self):
+            if self.mode == 1:  
+                # Force perturbation in positive X
+                F[0] += 2
+            elif self.mode == 2:  
+                # Sinusoidal force perturbation (getting shaken around)
+                amplitude = 2
+                frequency = 1
+                phase = 0
+                F[1] += amplitude * np.sin(frequency * t + phase)
+            elif self.mode == 3:  
+                # Force perturbation in both directions
+                F += np.array([2, 2])
+            elif self.mode == 4:
+                amplitude = 2
+                frequency = 1
+                phase = 0
+                F[0] += amplitude * np.cos(frequency * t + phase)
+                F[1] += amplitude * np.sin(frequency * t + phase)
+        return F
+
+    def draw(self, screen):
+        """
+        Draws the perturbation area on the screen.
+
+        Args:
+            screen (pygame.Surface): The surface representing the screen.
+        """
+        pygame.draw.rect(screen, (255, 255, 255, 128), self, width=4)
+
 
 def gaussian(x, y, mu, depth=100, sigma=100):
     """
@@ -50,16 +113,45 @@ def generate_heightmaps(coordinates, depth, step_size=1):
     heightmap = np.ones((600,400))
 
     # Compute heightmap
-    for i in range(len(coordinates) - 1):
+    for i in range(0, len(coordinates) - 1):
         dif = np.array(coordinates[i]) - np.array(coordinates[i+1])
         grad = dif / np.linalg.norm(dif)
         for j in range(int(np.linalg.norm(dif)/10) - 1):
             heightmap += gaussian(X.T, Y.T, coordinates[i] + j * - grad * 10, depth)
+    for i in range(10):
+        heightmap += gaussian(X.T, Y.T, coordinates[-1], depth)
+        heightmap += gaussian(X.T, Y.T, coordinates[0], depth)
 
     lower_res_heightmap = lower_resolution(heightmap, 10)
     
     return heightmap, lower_res_heightmap
 
+def generate_perturbations_area(coordinates):
+    """
+    Generate perturbation areas along the given path coordinates.
+
+    Parameters:
+        coordinates (list): List of coordinate tuples defining the path.
+
+    Returns:
+        list: List of PerturbationArea objects representing the generated perturbation areas.
+    """
+    areas = []  # Initialize list to store generated perturbation areas
+    random_nrb_perturbations = random.randint(1, 2)  # Number of random non-roadblock perturbations
+
+    for i in range(1, len(coordinates) - 1):
+        dif = np.array(coordinates[i]) - np.array(coordinates[i+1])  # Vector between consecutive coordinates
+        grad = dif / np.linalg.norm(dif)  # Gradient representing the direction of the path
+        
+        for j in range(int(np.linalg.norm(dif)/10) - 1):  # Iterate over intervals along the path
+            if random_nrb_perturbations > 0 and random.randint(0, 10) == 0:
+                random_nrb_perturbations -= 1  # Decrement remaining random non-roadblock perturbations
+                coords = coordinates[i] + j * -grad * 10  # Compute coordinates of the perturbation area
+                random_perturbation_type = random.randint(1, 4)  # Random type for the perturbation area
+                areas.append(PerturbationArea(coords[0] - 50, coords[1] - 50, 100, 100, random_perturbation_type))  # Create and append PerturbationArea object
+    
+    return areas
+                
 def lower_resolution(array, factor):
     """
     Lower the resolution of a 2D array by averaging values within blocks.
@@ -75,8 +167,7 @@ def lower_resolution(array, factor):
     new_shape = (array.shape[0] // factor, array.shape[1] // factor)
     
     # Reshape the array into blocks of size (factor, factor)
-    reshaped_array = array[:new_shape[0]*factor, :new_shape[1]*factor].reshape(
-        new_shape[0], factor, new_shape[1], factor)
+    reshaped_array = array[:new_shape[0]*factor, :new_shape[1]*factor].reshape(new_shape[0], factor, new_shape[1], factor)
     
     # Take the average within each block to reduce resolution
     lower_res_array = reshaped_array.mean(axis=(1, 3))
@@ -120,24 +211,35 @@ def generate_random_heighmaps():
     coordinates_2 = [(100,100),(100,300),(300,300),(300,100),(500,100),(500,350)]
     coordinates_3 = [(100,100),(500,100),(500,350),(100,350),(100,200),(250,200)]
 
-
     coord_list = [coordinates_1, coordinates_2, coordinates_3]
 
     depth_list = [100, 50, 20]  # to change
     environments = []
 
-
-
+    randomness_depth = random.randint(0, 2)
+    randomness_coord = random.randint(0, 2)
     for i in range(3):
-        randomness_depth_i = random.randint(0, 2)
-        randomness_coord_i = random.randint(0, 2)
-        depth = depth_list[randomness_depth_i]
-        heightmap, lower_res_heightmap = generate_heightmaps(coord_list[randomness_coord_i], depth)
-        environments.append((depth, heightmap, lower_res_heightmap, coord_list[randomness_coord_i], randomness_coord_i))
-
+        depth = depth_list[(i + randomness_depth) % len(depth_list)]
+        coord = coord_list[(i + randomness_coord) % len(coord_list)]
+        heightmap, lower_res_heightmap = generate_heightmaps(coord, depth)
+        areas = generate_perturbations_area(coord)
+        environments.append((depth, heightmap, lower_res_heightmap, coord, (i + randomness_coord) % len(coord_list), areas))
+    
     return environments
 
+
 def save_to_csv(subject_id, run_i, state, depth, coordinates_index, perturbed=False):
+    """
+    Save simulation data to CSV file.
+
+    Parameters:
+        subject_id (int): Identifier for the subject.
+        run_i (int): Identifier for the run.
+        state (list): List containing simulation state data.
+        depth (int): Depth of the environment.
+        coordinates_index (int): Index representing the coordinates of the environment.
+        perturbed (bool, optional): Whether the environment was perturbed. Defaults to False.
+    """
     # Prepare the data for CSV
     # Assuming state is a list of [t, xh[0], xh[1]] for each timestep
     df = pd.DataFrame(state, columns=['t', 'xh[0]', 'xh[1]'])
@@ -166,54 +268,40 @@ def main(environment, perturbations=False):
     Returns:
         None
     """
-    ##################### General Pygame Init #####################
-    ##initialize pygame window
+    ################################ Pygame Initialisation ################################
+    
+    # General Pygame Initialization
     pygame.init()
-    window = pygame.display.set_mode((1200, 400))   ##twice 600x400 for haptic and VR
+    window = pygame.display.set_mode((1200, 400))
     pygame.display.set_caption('Virtual Haptic Device')
+    clock = pygame.time.Clock()
 
-    screenHaptics = pygame.Surface((600,400))
-    screenVR = pygame.Surface((600,400))
+    # Setting up surfaces
+    screenHaptics = pygame.Surface((600, 400))
+    screenVR = pygame.Surface((600, 400))
 
-    ##add nice icon from https://www.flaticon.com/authors/vectors-market
+    # Setting up icon
     icon = pygame.image.load('robot.png')
     pygame.display.set_icon(icon)
 
-    ##add text on top to debugToggle the timing and forces
+    # Setting up text for debugging
     font = pygame.font.Font('freesansbold.ttf', 18)
-
-    pygame.mouse.set_visible(True)     ##Hide cursor by default. 'm' toggles it
-    
-    ##set up the on-screen debugToggle
-    text = font.render('Virtual Haptic Device', True, (0, 0, 0),(255, 255, 255))
+    text = font.render('Virtual Haptic Device', True, (0, 0, 0), (255, 255, 255))
     textRect = text.get_rect()
     textRect.topleft = (10, 10)
 
-
-    xc,yc = screenVR.get_rect().center ##center of the screen
-
-
-    ##initialize "real-time" clock
-    clock = pygame.time.Clock()
-
-    ##define some colors
-    cWhite = (255,255,255)
-    cDarkblue = (36,90,190)
+    # Some Constants
+    cWhite = (255, 255, 255)
+    cOrange = (255, 100, 0)
     cLightblue = (0,176,240)
-    cRed = (255,0,0)
-    cOrange = (255,100,0)
-    cYellow = (255,255,0)
 
-    ####Pseudo-haptics dynamic parameters, k/b needs to be <1
-    k = .5      ##Stiffness between cursor and haptic display
-    b = .8       ##Viscous of the pseudohaptic display
-
-
-    ##################### Define sprites #####################
+    # Pseudo-haptics dynamic parameters
+    k = 0.5  # Stiffness between cursor and haptic display
+    b = 0.8  # Viscous of the pseudohaptic display
 
     ##define sprites
     hhandle = pygame.image.load('handle.png')
-    haptic  = pygame.Rect(*screenHaptics.get_rect().center, 0, 0).inflate(48, 48)
+    haptic  = pygame.Rect(*screenHaptics.get_rect().center, 0, 0).inflate(30, 30)
     cursor  = pygame.Rect(0, 0, 5, 5)
     colorHaptic = cOrange ##color of the wall
 
@@ -221,12 +309,9 @@ def main(environment, perturbations=False):
 
     ##Set the old value to 0 to avoid jumps at init
     xhold = 0
-    xmold = 0
 
-    ##################### Init Virtual env. #####################
-
-
-    ##################### Detect and Connect Physical device #####################
+    ################################ Detect and Connect Physical device ################################
+    
     # USB serial microcontroller program id data:
     def serial_ports():
         """ Lists serial port names """
@@ -245,18 +330,17 @@ def main(environment, perturbations=False):
                 pass
         return result
 
-
+    # Detect and Connect Physical device
+    port = None  # Default to no port
+    haplyBoard = None
+    device = None
+    pantograph = None
+    robot = PShape
     CW = 0
     CCW = 1
-
-    haplyBoard = Board
-    device = Device
-    SimpleActuatorMech = Mechanisms
-    pantograph = Pantograph
-    robot = PShape
     
 
-    #########Open the connection with the arduino board#########
+    # Open the connection with the arduino board
     port = serial_ports()   ##port contains the communication port or False if no device
     if port:
         print("Board found on port %s"%port[0])
@@ -274,32 +358,24 @@ def main(environment, perturbations=False):
         device.device_set_parameters()
     else:
         print("No compatible device found. Running virtual environnement...")
-        #sys.exit(1)
-        
+    
 
+    ################################ Main Loop ################################
+    
+    # Main loop initialisation
+    run = True
+    robotToggle = True
+    heightmapToggle = False
+    recordingToggle = False
+    debugToggle = False
+    depth, heightmap, lower_res_heightmap, coordinates, coordinates_index, areas = environment
+    state = [] # State vector
+    endpoint  = pygame.Rect(coordinates[-1][0] - 1, coordinates[-1][1] - 1, 1, 1)
+    t_start = None
     # conversion from meters to pixels
     window_scale = 3
-
-    ##################### Main Loop #####################
-    ##Run the main loop
-    run = True
-    ongoingCollision = False
-    fieldToggle = True
-    robotToggle = True
-    heightmapToggle = True
-    recordingToggle = False
-    state = [] # state vector
-
-    debugToggle = False
-
-    depth, heightmap, lower_res_heightmap, coordinates, coordinates_index = environment
-    
-    t_start = pygame.time.get_ticks() # time
-    
-    # SIMULATION PARAMETERS
-    dt = 0.01 # intergration step timedt = 0.01 # integration step time
-    dts = dt*1 # desired simulation step time (NOTE: it may not be achieved)
-    FPS = int(1/dts) # refresh rate
+    dt = 0.01  # Integration step time
+    FPS = int(1 / dt)  # Refresh rate
     
     while run:
         #########Process events  (Mouse, Keyboard etc...)#########
@@ -316,7 +392,6 @@ def main(environment, perturbations=False):
                     debugToggle = not debugToggle
                 if event.key == ord('r'):
                     robotToggle = not robotToggle
-                '''*********** Student can add more ***********'''
                 ##Toggle the wall or the height map
                 if event.key == ord('h'):
                     heightmapToggle = not heightmapToggle
@@ -324,10 +399,9 @@ def main(environment, perturbations=False):
                 if event.key == ord('p'):
                     recordingToggle = not recordingToggle
 
-                '''*********** !Student can add more ***********'''
-
         ######### Read position (Haply and/or Mouse)  #########
-        
+        if haptic.colliderect(endpoint) and recordingToggle:
+            run = False
 
         ##Get endpoint position xh
         if port and haplyBoard.data_available():    ##If Haply is present
@@ -351,13 +425,12 @@ def main(environment, perturbations=False):
             ##Get mouse position
             cursor.center = pygame.mouse.get_pos()
             xm = np.clip(np.array(cursor.center),0,599)
+                
         
-        '''*********** Student should fill in ***********'''
+        
+        ################################ Compute forces ################################
         
         fe = np.zeros(2)  ##Environment force is set to 0 initially.
-        ##Replace 
-        
-        ######### Compute forces ########
 
         # Damping
         b_virtual = 5  # Virtual damping coefficient
@@ -373,17 +446,20 @@ def main(environment, perturbations=False):
         fe += fe_shape
         
         if perturbations:
-            #add perturbation force here
-            pass
-        '''*********** !Student should fill in ***********'''
+            for p_area in areas:
+                fe += p_area.apply_force(haptic, pygame.time.get_ticks())
+                
+        ################################ Record data and send force to Haptic device ################################
+
         if recordingToggle:
+            if t_start is None:
+                t_start = pygame.time.get_ticks()
             # log states for analysis
             t = (pygame.time.get_ticks() - t_start)
             state.append([t, xh[0], xh[1]])
         
         ##Update old samples for velocity computation
-        xhold = xh
-        xmold = xm    
+        xhold = xh   
         
         ######### Send forces to the device #########
         if port:
@@ -404,7 +480,8 @@ def main(environment, perturbations=False):
             
         haptic.center = xh 
         
-            ######### Graphical output #########
+        ################################ Graphical output ################################
+        
         ##Render the haptic surface
         screenHaptics.fill(cWhite)
         
@@ -418,20 +495,16 @@ def main(environment, perturbations=False):
         
 
         ######### Robot visualization ###################
-        # update individual link position
+        # Update individual link position
         if robotToggle:
             robot.createPantograph(screenHaptics,xh)
             
-        
-        ### Hand visualisation
+        # Hand visualisation
         screenHaptics.blit(hhandle,(haptic.topleft[0],haptic.topleft[1]))
         pygame.draw.line(screenHaptics, (0, 0, 0), (haptic.center),(haptic.center+2*k*(xm-xh)))
         
-        
-        ##Render the VR surface
+        # Render the VR surface
         screenVR.fill(cLightblue)
-        '''*********** Student should fill in ***********'''
-        ### here goes the visualisation of the VR sceen. 
         
         # Define colors for terrain
         color_min = (0, 0, 255)  # Dark blue
@@ -450,36 +523,36 @@ def main(environment, perturbations=False):
             return r, g, b
         
         # Draw the heightmap
-        for y, row in enumerate(normalized_heightmap):
-            for x, height in enumerate(row):
-                color = height_to_color(height)
-                pygame.draw.rect(screenVR, color, (y*10 , x*10 , 10, 10))
+        if heightmapToggle:
+            for y, row in enumerate(normalized_heightmap):
+                for x, height in enumerate(row):
+                    color = height_to_color(height)
+                    pygame.draw.rect(screenVR, color, (y*10 , x*10 , 10, 10))
+            
+            if perturbations:
+                for p_area in areas:
+                    p_area.draw(screenVR)
 
         # Draw coordinate points
-        def draw_points(coordinates, color=(255, 0, 0), radius=5):
-            for coord in coordinates:
-                pygame.draw.circle(screenVR, color, coord, radius)
+        def draw_point(coord, color=(255, 0, 0), radius=50, width=3):
+            pygame.draw.circle(screenVR, color, coord, radius, width)
         
-        draw_points(coordinates)
+        # Draw starting circle        
+        if not recordingToggle:
+            draw_point(coordinates[0])
         
-        # Draw perturbations area
-        if perturbations:
-            pass
-        
-        ### Use pygame.draw.rect(screenVR, color, rectangle) to render rectangles. 
+        # Draw haptic device on VR screen
         pygame.draw.rect(screenVR, colorHaptic, haptic, border_radius=8)
         
+        # Draw goal
+        #pygame.draw.rect(screenVR, (255, 0, 255), endpoint.inflate(10,10))
         
-        '''*********** !Student should fill in ***********'''
-
-
-        ##Fuse it back together
+        # Fuse it back together
         window.blit(screenHaptics, (0,0))
         window.blit(screenVR, (600,0))
 
-        ##Print status in  overlay
+        # Print status in  overlay
         if debugToggle: 
-            
             text = font.render("FPS = " + str(round(clock.get_fps())) + \
                                 "  xm = " + str(np.round(10*xm)/10) +\
                                 "  xh = " + str(np.round(10*xh)/10) +\
@@ -489,7 +562,7 @@ def main(environment, perturbations=False):
 
 
         pygame.display.flip()    
-        ##Slow down the loop to match FPS
+        # Slow down the loop to match FPS
         clock.tick(FPS)
 
     pygame.display.quit()
@@ -509,6 +582,7 @@ if __name__ == "__main__":
     run_i = 0
     folder = f'data_recordings'
 
+    # Run environments without perturbations
     for environment in environments:
         recorded = False
         while not recorded:
@@ -524,7 +598,7 @@ if __name__ == "__main__":
                 print('lets try again!')
                 continue
 
-        
+    # Run environments with perturbations
     for environment in environments:
         recorded = False
         while not recorded:
@@ -546,16 +620,16 @@ if __name__ == "__main__":
     # Plot data on each subplot
     for d in range(len(data)):
         for i in range(len(data[d][1]) - 1):
-            axs[d//3, d%3].plot(data[d][1][i:i + 2, 0], data[d][1][i:i + 2, 1], "red", label="Segment" if i == 0 else None)
+            axs[d//3, d%3].plot(data[d][1][i:i + 2, 0], -data[d][1][i:i + 2, 1], "red", label="Segment" if i == 0 else None)
         if data[d][0].size != 0:
-            axs[d//3, d%3].plot(data[d][0][:, 1], data[d][0][:, 2], "lime", label="CONTROLLER")
+            axs[d//3, d%3].plot(data[d][0][:, 1], -data[d][0][:, 2], "lime", label="CONTROLLER")
         else:
             axs[d//3, d%3].plot(300, 200, "lime", label="CONTROLLER")
         axs[d//3, d%3].axis('equal')
         axs[d//3, d%3].set_xlabel("x")
         axs[d//3, d%3].set_ylabel("y [m")
         axs[d//3, d%3].legend()
-        axs[d//3, d%3].set_title(f'Plot {d}')
+        axs[d//3, d%3].set_title(f'Plot {d + 1}')
     
     # Adjust layout
     plt.tight_layout()
