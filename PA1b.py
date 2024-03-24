@@ -5,6 +5,7 @@ import pygame
 import serial
 import random
 import matplotlib.pyplot as plt
+import pandas as pd
 
 from serial.tools import list_ports
 from pantograph import Pantograph
@@ -132,6 +133,34 @@ def generate_random_heighmaps():
         environments.append((depth, heightmap, lower_res_heightmap, coord_list[i]))
 
     return environments
+
+def save_to_csv_old(folder, subject_id, run_i, state, coordinates, perturbed=False):
+    # Prepare the data for CSV
+    rows = [[state] + list(coord) for coord in coordinates]  # Assuming coordinates is a list of tuples/lists
+    df = pd.DataFrame(rows, columns=['State', 'X Coordinate', 'Y Coordinate'])
+
+    # Determine filename
+    perturbation_status = "perturbed" if perturbed else "normal"
+    file_name = f'subject_{subject_id}_run_{run_i}_{perturbation_status}.csv'
+    path = folder +'/' + file_name
+
+    # Save to CSV
+    df.to_csv(path, index=False)
+    print(f'Data saved to {path}')
+
+def save_to_csv(subject_id, run_i, state, perturbed=False):
+    # Prepare the data for CSV
+    # Assuming state is a list of [t, xh[0], xh[1]] for each timestep
+    df = pd.DataFrame(state, columns=['t', 'xh[0]', 'xh[1]'])
+
+    # Determine filename
+    perturbation_status = "perturbed" if perturbed else "normal"
+    file_name = f'subject_{subject_id}_run_{run_i}_{perturbation_status}.csv'
+    path = folder + '/' + file_name
+
+    # Save to CSV
+    df.to_csv(path , index=False)
+    print(f'Data saved to {file_name} inside folder {folder}')
 
 
 def main(environment, perturbations=False):
@@ -276,7 +305,7 @@ def main(environment, perturbations=False):
 
     depth, heightmap, lower_res_heightmap, coordinates = environment
     
-    t = 0.0 # time
+    t_start = pygame.time.get_ticks() # time
     
     # SIMULATION PARAMETERS
     dt = 0.01 # intergration step timedt = 0.01 # integration step time
@@ -360,6 +389,7 @@ def main(environment, perturbations=False):
         '''*********** !Student should fill in ***********'''
         if recordingToggle:
             # log states for analysis
+            t = (pygame.time.get_ticks() - t_start)
             state.append([t, xh[0], xh[1]])
         
         ##Update old samples for velocity computation
@@ -483,16 +513,26 @@ def main(environment, perturbations=False):
 
 
 if __name__ == "__main__":
-    
+    print(f'Insert participant ID please:')
+    subject_id = input()
     environments = generate_random_heighmaps()
     data = list()
+    run_i = 0
+    folder = f'data_recordings'
+
     for environment in environments:
+        run_i += 1
         state, coordinates = main(environment)
         data.append((state, coordinates))
+        # save_to_csv(folder, subject_id, run_i, state, coordinates)
+        save_to_csv(subject_id, run_i, state)
         
     for environment in environments:
+        run_i += 1
         state, coordinates = main(environment, perturbations=True)
         data.append((state, coordinates))
+        # save_to_csv(folder, subject_id, run_i, state, coordinates, perturbed=True)
+        save_to_csv(subject_id, run_i, state, True)
         
     # Create a figure and 6 subplots arranged in a 3 column, 2 row format
     fig, axs = plt.subplots(2, 3, figsize=(12, 8))
@@ -513,6 +553,10 @@ if __name__ == "__main__":
     
     # Adjust layout
     plt.tight_layout()
+
+    # Save plot as .png image
+    image_path= folder + "/" + subject_id
+    plt.savefig(f'{image_path}.png')
 
     # Show plot
     plt.show()
