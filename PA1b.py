@@ -12,7 +12,7 @@ from pantograph import Pantograph
 from pshape import PShape
 from pyhapi import Board, Device, Mechanisms
 
-# Functions for heightmap generation and gradient calculations
+# Functions for heightmap generat1ion and gradient calculations
 
 class PerturbationArea(pygame.Rect):
     """
@@ -311,55 +311,6 @@ def main(environment, perturbations=False):
     xhold = 0
 
     ################################ Detect and Connect Physical device ################################
-    
-    # USB serial microcontroller program id data:
-    def serial_ports():
-        """ Lists serial port names """
-        ports = list(serial.tools.list_ports.comports())
-
-        result = []
-        for p in ports:
-            try:
-                port = p.device
-                s = serial.Serial(port)
-                s.close()
-                if p.description[0:12] == "Arduino Zero":
-                    result.append(port)
-                    print(p.description[0:12])
-            except (OSError, serial.SerialException):
-                pass
-        return result
-
-    # Detect and Connect Physical device
-    port = None  # Default to no port
-    haplyBoard = None
-    device = None
-    pantograph = None
-    robot = PShape
-    CW = 0
-    CCW = 1
-    
-
-    # Open the connection with the arduino board
-    port = serial_ports()   ##port contains the communication port or False if no device
-    if port:
-        print("Board found on port %s"%port[0])
-        haplyBoard = Board("test", port[0], 0)
-        device = Device(5, haplyBoard)
-        pantograph = Pantograph()
-        device.set_mechanism(pantograph)
-        
-        device.add_actuator(1, CCW, 2)
-        device.add_actuator(2, CW, 1)
-        
-        device.add_encoder(1, CCW, 241, 10752, 2)
-        device.add_encoder(2, CW, -61, 10752, 1)
-        
-        device.device_set_parameters()
-    else:
-        print("No compatible device found. Running virtual environnement...")
-    
-
     ################################ Main Loop ################################
     
     # Main loop initialisation
@@ -401,7 +352,14 @@ def main(environment, perturbations=False):
 
         ######### Read position (Haply and/or Mouse)  #########
         if haptic.colliderect(endpoint) and recordingToggle:
+            fe = np.zeros(2)
+            ##Update the forces of the device
+            device.set_device_torques(fe)
+            device.device_write_torques()
+            #pause for 1 millisecond
+            time.sleep(0.001)
             run = False
+
 
         ##Get endpoint position xh
         if port and haplyBoard.data_available():    ##If Haply is present
@@ -567,6 +525,7 @@ def main(environment, perturbations=False):
 
     pygame.display.quit()
     pygame.quit()
+
     
     
     state = np.array(state)
@@ -575,6 +534,54 @@ def main(environment, perturbations=False):
 
 
 if __name__ == "__main__":
+    # USB serial microcontroller program id data:
+    def serial_ports():
+        """ Lists serial port names """
+        ports = list(serial.tools.list_ports.comports())
+
+        result = []
+        for p in ports:
+            try:
+                port = p.device
+                s = serial.Serial(port)
+                s.close()
+                if p.description[0:12] == "Arduino Zero":
+                    result.append(port)
+                    print(p.description[0:12])
+            except (OSError, serial.SerialException):
+                pass
+        return result
+
+
+    # Detect and Connect Physical device
+    port = None  # Default to no port
+    haplyBoard = None
+    device = None
+    pantograph = None
+    robot = PShape
+    CW = 0
+    CCW = 1
+
+    # Open the connection with the arduino board
+    port = serial_ports()  ##port contains the communication port or False if no device
+
+    if port:
+        print("Board found on port %s" % port[0])
+        haplyBoard = Board("test", port[0], 0)
+        device = Device(5, haplyBoard)
+        pantograph = Pantograph()
+        device.set_mechanism(pantograph)
+
+        device.add_actuator(1, CCW, 2)
+        device.add_actuator(2, CW, 1)
+
+        device.add_encoder(1, CCW, 241, 10752, 2)
+        device.add_encoder(2, CW, -61, 10752, 1)
+
+        device.device_set_parameters()
+    else:
+        print("No compatible device found. Running virtual environnement...")
+
     print(f'Insert participant ID please:')
     subject_id = input()
     environments = generate_random_heighmaps()
@@ -584,6 +591,8 @@ if __name__ == "__main__":
 
     # Run environments without perturbations
     for environment in environments:
+        print('Ready?')
+        input()
         recorded = False
         while not recorded:
             state, coordinates, depth, coordinates_index = main(environment)
@@ -600,6 +609,7 @@ if __name__ == "__main__":
 
     # Run environments with perturbations
     for environment in environments:
+        print('Ready?')
         recorded = False
         while not recorded:
             state, coordinates, depth, coordinates_index = main(environment, perturbations=True)
