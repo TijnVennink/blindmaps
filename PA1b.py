@@ -211,6 +211,50 @@ def generate_random_heighmaps():
     
     return environments
 
+def closest_point_on_line_segment(p1, p2, p):
+    """
+    Calculate the closest point to p on the line segment defined by points p1 and p2.
+
+    Parameters:
+    p1 (tuple): The start point of the segment.
+    p2 (tuple): The end point of the segment.
+    p (tuple): The point to find the closest point to.
+
+    Returns:
+    tuple: The closest point on the segment to point p.
+    """
+    line_vec = np.array(p2) - np.array(p1)
+    point_vec = np.array(p) - np.array(p1)
+    line_len = np.linalg.norm(line_vec)
+    line_unitvec = line_vec / line_len
+    p_vec_scaled = np.dot(point_vec, line_unitvec)
+    if p_vec_scaled < 0:
+        return p1
+    elif p_vec_scaled > line_len:
+        return p2
+    else:
+        return np.array(p1) + line_unitvec * p_vec_scaled
+
+
+def distance_to_track(xh, coordinates):
+    """
+    Calculates the minimum distance from a point to a track defined by a list of coordinates.
+
+    Parameters:
+    xh (tuple): The point (x, y).
+    coordinates (list): The list of coordinates defining the track.
+
+    Returns:
+    float: The minimum distance from the point to the track.
+    """
+    min_distance = np.inf
+    for i in range(len(coordinates) - 1):
+        closest_point = closest_point_on_line_segment(coordinates[i], coordinates[i+1], xh)
+        distance = np.linalg.norm(np.array(xh) - np.array(closest_point))
+        if distance < min_distance:
+            min_distance = distance
+    return min_distance
+
 
 def save_to_csv(subject_id, run_i, state, depth, coordinates_index, perturbed=False):
     """
@@ -226,7 +270,7 @@ def save_to_csv(subject_id, run_i, state, depth, coordinates_index, perturbed=Fa
     """
     # Prepare the data for CSV
     # Assuming state is a list of [t, xh[0], xh[1]] for each timestep
-    df = pd.DataFrame(state, columns=['t', 'xh[0]', 'xh[1]'])
+    df = pd.DataFrame(state, columns=['t', 'xh[0]', 'xh[1]', 'dist'])
 
     # Determine filename
     perturbation_status = "perturbed" if perturbed else "normal"
@@ -398,7 +442,10 @@ def main(environment, perturbations=False):
                 t_start = pygame.time.get_ticks()
             # log states for analysis
             t = (pygame.time.get_ticks() - t_start)
-            state.append([t, xh[0], xh[1]])
+
+            # Calculate the distance and append to state
+            distance = distance_to_track(xh, coordinates) #distance in pixels!
+            state.append([t, xh[0], xh[1], distance]) #append to state!
         
         ##Update old samples for velocity computation
         xhold = xh   
