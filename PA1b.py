@@ -126,7 +126,7 @@ def generate_perturbations_area(coordinates):
     nrb_perturbations = 1  # Number of random non-roadblock perturbations
     coord_list = []
 
-    for i in range(1, len(coordinates) - 1):
+    for i in range(1, len(coordinates) - 2):
         dif = np.array(coordinates[i]) - np.array(coordinates[i+1])  # Vector between consecutive coordinates
         grad = dif / np.linalg.norm(dif)  # Gradient representing the direction of the path
         for j in range(int(np.linalg.norm(dif)/10) - 1):  # Iterate over intervals along the path
@@ -199,17 +199,18 @@ def generate_random_heighmaps():
 
     depth_list = [110, 80, 50]  # to change
     environments = []
-
+    depths = []
     randomness_depth = random.randint(0, 2)
     randomness_coord = random.randint(0, 2)
     for i in range(3):
         depth = depth_list[(i + randomness_depth) % len(depth_list)]
+        depths.append(depth)
         coord = coord_list[(i + randomness_coord) % len(coord_list)]
         heightmap, lower_res_heightmap = generate_heightmaps(coord, depth)
         areas = generate_perturbations_area(coord)
         environments.append((depth, heightmap, lower_res_heightmap, coord, (i + randomness_coord) % len(coord_list), areas))
     
-    return environments
+    return environments, depths
 
 def closest_point_on_line_segment(p1, p2, p):
     """
@@ -615,7 +616,7 @@ if __name__ == "__main__":
 
     print(f'Insert participant ID please:')
     subject_id = input()
-    environments = generate_random_heighmaps()
+    environments, depths_list = generate_random_heighmaps()
     data = list()
     run_i = 0
     folder = f'data_recordings'
@@ -691,7 +692,7 @@ if __name__ == "__main__":
         axs[d//3, d%3].set_xlabel("x")
         axs[d//3, d%3].set_ylabel("y [m")
         axs[d//3, d%3].legend()
-        axs[d//3, d%3].set_title(f'Plot {d + 1}')
+        axs[d//3, d%3].set_title(f'Plot {d + 1}, Depth: {depths_list[d%3]}')
     
     # Adjust layout
     plt.tight_layout()
