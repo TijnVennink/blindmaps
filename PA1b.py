@@ -6,13 +6,14 @@ import serial
 import random
 import matplotlib.pyplot as plt
 import pandas as pd
+import os
 
 from serial.tools import list_ports
 from pantograph import Pantograph
 from pshape import PShape
 from pyhapi import Board, Device, Mechanisms
 
-# Functions for heightmap generat1ion and gradient calculations
+# Functions for heightmap generation and gradient calculations
 
 class PerturbationArea(pygame.Rect):
     """
@@ -118,9 +119,9 @@ def generate_heightmaps(coordinates, depth, step_size=1):
         grad = dif / np.linalg.norm(dif)
         for j in range(int(np.linalg.norm(dif)/10) - 1):
             heightmap += gaussian(X.T, Y.T, coordinates[i] + j * - grad * 10, depth)
-    for i in range(10):
-        heightmap += gaussian(X.T, Y.T, coordinates[-1], depth)
-        heightmap += gaussian(X.T, Y.T, coordinates[0], depth)
+    
+    heightmap += gaussian(X.T, Y.T, coordinates[-1], depth=100, sigma=200)
+    heightmap += gaussian(X.T, Y.T, coordinates[0], depth=100, sigma=200)
 
     lower_res_heightmap = lower_resolution(heightmap, 10)
     
@@ -310,7 +311,6 @@ def main(environment, perturbations=False):
     ##Set the old value to 0 to avoid jumps at init
     xhold = 0
 
-    ################################ Detect and Connect Physical device ################################
     ################################ Main Loop ################################
     
     # Main loop initialisation
@@ -352,12 +352,13 @@ def main(environment, perturbations=False):
 
         ######### Read position (Haply and/or Mouse)  #########
         if haptic.colliderect(endpoint) and recordingToggle:
-            fe = np.zeros(2)
-            ##Update the forces of the device
-            device.set_device_torques(fe)
-            device.device_write_torques()
-            #pause for 1 millisecond
-            time.sleep(0.001)
+            if port:
+                fe = np.zeros(2)
+                ##Update the forces of the device
+                device.set_device_torques(fe)
+                device.device_write_torques()
+                #pause for 1 millisecond
+                time.sleep(0.001)
             run = False
 
 
@@ -588,14 +589,27 @@ if __name__ == "__main__":
     data = list()
     run_i = 0
     folder = f'data_recordings'
+    
+    if not os.path.exists(folder):
+        os.makedirs(folder)
+        print(f"Folder '{folder}' created successfully.")
+    else:
+        print(f"Folder '{folder}' already exists.")
 
     # Run environments without perturbations
     for environment in environments:
-        print('Ready?')
-        input()
+        input('Please reset the position. Ready?')
         recorded = False
         while not recorded:
             state, coordinates, depth, coordinates_index = main(environment)
+            if port:
+                fe = np.zeros(2)
+                # Update the forces of the device
+                device.set_device_torques(fe)
+                device.device_write_torques()
+                # Pause for 1 millisecond
+                time.sleep(0.001)
+        
             # save_to_csv(folder, subject_id, run_i, state, coordinates)
             if len(state) != 0:
                 data.append((state, coordinates))
@@ -609,10 +623,18 @@ if __name__ == "__main__":
 
     # Run environments with perturbations
     for environment in environments:
-        print('Ready?')
+        input('Please reset the position. Ready?')
         recorded = False
         while not recorded:
             state, coordinates, depth, coordinates_index = main(environment, perturbations=True)
+            if port:
+                fe = np.zeros(2)
+                # Update the forces of the device
+                device.set_device_torques(fe)
+                device.device_write_torques()
+                # Pause for 1 millisecond
+                time.sleep(0.001)
+            
             # save_to_csv(folder, subject_id, run_i, state, coordinates)
             if len(state) != 0:
                 data.append((state, coordinates))
