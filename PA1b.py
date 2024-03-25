@@ -23,7 +23,7 @@ class PerturbationArea(pygame.Rect):
         mode (int): The mode determining the type of perturbation behavior.
     """
 
-    def __init__(self, x, y, height, width, mode):
+    def __init__(self, x, y, height, width):
         """
         Initializes the PerturbationArea object.
 
@@ -32,10 +32,8 @@ class PerturbationArea(pygame.Rect):
             y (int): The y-coordinate of the top-left corner of the perturbation area.
             height (int): The height of the perturbation area.
             width (int): The width of the perturbation area.
-            mode (int): The mode determining the type of perturbation behavior.
         """
         super().__init__(x, y, width, height)
-        self.mode = mode
         
     def apply_force(self, haptic, t):
         """
@@ -50,24 +48,11 @@ class PerturbationArea(pygame.Rect):
         """
         F = np.array([0, 0])
         if haptic.colliderect(self):
-            if self.mode == 1:  
-                # Force perturbation in positive X
-                F[0] += 2
-            elif self.mode == 2:  
-                # Sinusoidal force perturbation (getting shaken around)
-                amplitude = 2
-                frequency = 1
-                phase = 0
-                F[1] += amplitude * np.sin(frequency * t + phase)
-            elif self.mode == 3:  
-                # Force perturbation in both directions
-                F += np.array([2, 2])
-            elif self.mode == 4:
-                amplitude = 2
-                frequency = 1
-                phase = 0
-                F[0] += amplitude * np.cos(frequency * t + phase)
-                F[1] += amplitude * np.sin(frequency * t + phase)
+            amplitude = 2
+            frequency = 0.1
+            phase = 0
+            F[0] += amplitude * np.cos(frequency * t + phase)
+            F[1] += amplitude * np.sin(frequency * t + phase)
         return F
 
     def draw(self, screen):
@@ -120,8 +105,8 @@ def generate_heightmaps(coordinates, depth, step_size=1):
         for j in range(int(np.linalg.norm(dif)/10) - 1):
             heightmap += gaussian(X.T, Y.T, coordinates[i] + j * - grad * 10, depth)
     
-    heightmap += gaussian(X.T, Y.T, coordinates[-1], depth=100, sigma=200)
-    heightmap += gaussian(X.T, Y.T, coordinates[0], depth=100, sigma=200)
+    heightmap += gaussian(X.T, Y.T, coordinates[-1], depth=150, sigma=250)
+    heightmap += gaussian(X.T, Y.T, coordinates[0], depth=150, sigma=250)
 
     lower_res_heightmap = lower_resolution(heightmap, 10)
     
@@ -138,18 +123,16 @@ def generate_perturbations_area(coordinates):
         list: List of PerturbationArea objects representing the generated perturbation areas.
     """
     areas = []  # Initialize list to store generated perturbation areas
-    random_nrb_perturbations = random.randint(1, 2)  # Number of random non-roadblock perturbations
+    nrb_perturbations = 1  # Number of random non-roadblock perturbations
+    coord_list = []
 
     for i in range(1, len(coordinates) - 1):
         dif = np.array(coordinates[i]) - np.array(coordinates[i+1])  # Vector between consecutive coordinates
         grad = dif / np.linalg.norm(dif)  # Gradient representing the direction of the path
-        
         for j in range(int(np.linalg.norm(dif)/10) - 1):  # Iterate over intervals along the path
-            if random_nrb_perturbations > 0 and random.randint(0, 10) == 0:
-                random_nrb_perturbations -= 1  # Decrement remaining random non-roadblock perturbations
-                coords = coordinates[i] + j * -grad * 10  # Compute coordinates of the perturbation area
-                random_perturbation_type = random.randint(1, 4)  # Random type for the perturbation area
-                areas.append(PerturbationArea(coords[0] - 50, coords[1] - 50, 100, 100, random_perturbation_type))  # Create and append PerturbationArea object
+                coord_list.append(coordinates[i] + j * -grad * 10)  # Compute coordinates
+    random_perturbation_idx = random.randint(0, len(coord_list))
+    areas.append(PerturbationArea(coord_list[random_perturbation_idx][0] - 50, coord_list[random_perturbation_idx][1] - 50, 100, 100))  # Create and append PerturbationArea object
     
     return areas
                 
@@ -208,13 +191,13 @@ def generate_random_heighmaps():
               - lower_res_heightmap: A lower resolution version of the heightmap.
               - list: Coordinates defining the boundaries of the environment.
     """
-    coordinates_1 = [(100,100),(400,100),(400,200),(200,200),(200,300),(500,300)]
-    coordinates_2 = [(100,100),(100,300),(300,300),(300,100),(500,100),(500,350)]
-    coordinates_3 = [(100,100),(500,100),(500,350),(100,350),(100,200),(250,200)]
+    coordinates_0 = [(50,50),(300,50),(300,200),(100,200),(100,350),(500,350),(500,100)]
+    coordinates_1 = [(100, 100), (100, 300), (300, 300), (300, 100), (500, 100), (500, 300)]
+    coordinates_2 = [(100,100),(500,100),(500,350),(100,350),(100,200),(250,200)]
 
-    coord_list = [coordinates_1, coordinates_2, coordinates_3]
+    coord_list = [coordinates_0, coordinates_1, coordinates_2]
 
-    depth_list = [100, 50, 20]  # to change
+    depth_list = [110, 80, 50]  # to change
     environments = []
 
     randomness_depth = random.randint(0, 2)
