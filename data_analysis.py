@@ -57,59 +57,86 @@ def split_dataframe(df, num_parts, value):
 # Function to plot graphs
 def plot_graphs(df, df_mean):
     plt.figure(figsize=(12, 12))
+    
+    # Seperate normal and perturbed data
+    perturbed_data = df_mean[df_mean['condition'] == 'perturbed']
+    normal_data = df_mean[df_mean['condition'] == 'normal']
+    
+    # Get maximum and minimum values of time_to_complete for both conditions
+    min_time = min(normal_data['time_to_complete'].min(), perturbed_data['time_to_complete'].min())
+    max_time = max(normal_data['time_to_complete'].max(), perturbed_data['time_to_complete'].max())    
+
 
     # Plot time to complete vs depth for normal data
-    plt.subplot(2, 2, 1)
-    normal_data = df_mean[df_mean['condition'] == 'normal']
+    plot1 = plt.subplot(2, 2, 1)
     bar_width = 20  # Adjust the width of the bars
     segmentation = 3 # please only use odd segmentation :D
     offset = bar_width / (segmentation)
-    plt.bar(normal_data['depth'], normal_data['time_to_complete'], color='blue', width=bar_width, alpha=0.7) # Make slightly opaque
+    plot1.bar(normal_data['depth'], normal_data['time_to_complete'], color='blue', width=bar_width, alpha=0.7) # Make slightly opaque
     split_normal_time = split_dataframe(df[df['condition'] == 'normal'], segmentation, 'time_to_complete')
     for i, part in enumerate(split_normal_time):
         for j, sub_part in enumerate(part):
-            plt.bar(sub_part['depth'] + offset * (((segmentation - 1) / 2) * (j - ((segmentation - 1) / 2))) ,sub_part['time_to_complete'].mean(), color='blue', width=bar_width / segmentation - 3)
-    plt.title('Time to Complete vs Depth (Normal)')
-    plt.xlabel('Depth')
-    plt.ylabel('Time to Complete')
-    plt.xticks(normal_data['depth'].unique())  # Show only unique depth values on x-axis
+            plot1.bar(sub_part['depth'] + offset * (((segmentation - 1) / 2) * (j - ((segmentation - 1) / 2))) ,sub_part['time_to_complete'].mean(), color='blue', width=bar_width / segmentation - 3)
+            min_time = min(min_time, sub_part['time_to_complete'].mean().min())
+            max_time = max(max_time, sub_part['time_to_complete'].mean().max())
+    plot1.set_title('Time to Complete vs Depth (Normal)')
+    plot1.set_xlabel('Depth')
+    plot1.set_ylabel('Time to Complete')
+    plot1.set_xticks(normal_data['depth'].unique())  # Show only unique depth values on x-axis
 
     # Plot time to complete vs depth for perturbed data
-    plt.subplot(2, 2, 2)
-    perturbed_data = df_mean[df_mean['condition'] == 'perturbed']
-    plt.bar(perturbed_data['depth'], perturbed_data['time_to_complete'], color='orange', width=bar_width, alpha=0.7) # Make slightly opaque
+    plot2 = plt.subplot(2, 2, 2)
+    plot2.bar(perturbed_data['depth'], perturbed_data['time_to_complete'], color='orange', width=bar_width, alpha=0.7) # Make slightly opaque
     split_perturbed_time = split_dataframe(df[df['condition'] == 'perturbed'], segmentation, 'time_to_complete')
     for i, part in enumerate(split_perturbed_time):
         for j, sub_part in enumerate(part):
-            plt.bar(sub_part['depth'] + offset * (((segmentation - 1) / 2) * (j - ((segmentation - 1) / 2))), sub_part['time_to_complete'].mean(), color='orange', width=bar_width / segmentation - 3)    
-    plt.title('Time to Complete vs Depth (Perturbed)')
-    plt.xlabel('Depth')
-    plt.ylabel('Time to Complete')
-    plt.xticks(perturbed_data['depth'].unique())  # Show only unique depth values on x-axis
+            plot2.bar(sub_part['depth'] + offset * (((segmentation - 1) / 2) * (j - ((segmentation - 1) / 2))), sub_part['time_to_complete'].mean(), color='orange', width=bar_width / segmentation - 3)    
+            min_time = min(min_time, sub_part['time_to_complete'].mean().min())
+            max_time = max(max_time, sub_part['time_to_complete'].mean().max())
+    plot2.set_title('Time to Complete vs Depth (Perturbed)')
+    plot2.set_xlabel('Depth')
+    plot2.set_ylabel('Time to Complete')
+    plot2.set_xticks(perturbed_data['depth'].unique())  # Show only unique depth values on x-axis
+    
+    plot1.set_ylim(min_time, max_time+500)  # Set y-limits
+    plot2.set_ylim(min_time, max_time+500)  # Set y-limits
+    
+     # Get maximum and minimum values of avg_distance for both conditions
+    min_avg_distance = min(normal_data['avg_distance'].min(), perturbed_data['avg_distance'].min())
+    max_avg_distance = max(normal_data['avg_distance'].max(), perturbed_data['avg_distance'].max())    
 
     # Plot average distance vs depth for normal data
-    plt.subplot(2, 2, 3)
-    plt.bar(normal_data['depth'], normal_data['avg_distance'], color='blue', width=bar_width, alpha=0.7) # Make slightly opaque
+    plot3 = plt.subplot(2, 2, 3)
+    plot3.bar(normal_data['depth'], normal_data['avg_distance'], color='blue', width=bar_width, alpha=0.7) # Make slightly opaque
     split_normal_distance = split_dataframe(df[df['condition'] == 'normal'], segmentation, 'avg_distance')
     for i, part in enumerate(split_normal_distance):
         for j, sub_part in enumerate(part):
-            plt.bar(sub_part['depth'] + offset * (((segmentation - 1) / 2) * (j - ((segmentation - 1) / 2))) ,sub_part['avg_distance'].mean(), color='blue', width=bar_width / segmentation - 3)
-    plt.title('Average Distance to Desired Path vs Depth (Normal)')
-    plt.xlabel('Depth')
-    plt.ylabel('Average Distance')
-    plt.xticks(normal_data['depth'].unique())  # Show only unique depth values on x-axis
+            plot3.bar(sub_part['depth'] + offset * (((segmentation - 1) / 2) * (j - ((segmentation - 1) / 2))) ,sub_part['avg_distance'].mean(), color='blue', width=bar_width / segmentation - 3)
+            min_avg_distance = min(min_avg_distance, sub_part['avg_distance'].mean().min())
+            max_avg_distance = max(max_avg_distance, sub_part['avg_distance'].mean().max())
+    plot3.set_title('Average Distance to Desired Path vs Depth (Normal)')
+    plot3.set_xlabel('Depth')
+    plot3.set_ylabel('Average Distance')
+    plot3.set_xticks(normal_data['depth'].unique())  # Show only unique depth values on x-axis
+    
+
 
     # Plot average distance vs depth for perturbed data
-    plt.subplot(2, 2, 4)
-    plt.bar(perturbed_data['depth'], perturbed_data['avg_distance'], color='orange', width=bar_width, alpha=0.7) # Make slightly opaque
+    plot4 = plt.subplot(2, 2, 4)
+    plot4.bar(perturbed_data['depth'], perturbed_data['avg_distance'], color='orange', width=bar_width, alpha=0.7) # Make slightly opaque
     split_perturbed_distance = split_dataframe(df[df['condition'] == 'perturbed'], segmentation, 'avg_distance')
     for i, part in enumerate(split_perturbed_distance):
         for j, sub_part in enumerate(part):
             plt.bar(sub_part['depth'] + offset * (((segmentation - 1) / 2) * (j - ((segmentation - 1) / 2))), sub_part['avg_distance'].mean(), color='orange', width=bar_width / segmentation - 3)
-    plt.title('Average Distance to Desired Path vs Depth (Perturbed)')
-    plt.xlabel('Depth')
-    plt.ylabel('Average Distance')
-    plt.xticks(perturbed_data['depth'].unique())  # Show only unique depth values on x-axis
+            min_avg_distance = min(min_avg_distance, sub_part['avg_distance'].mean().min())
+            max_avg_distance = max(max_avg_distance, sub_part['avg_distance'].mean().max())
+    plot4.set_title('Average Distance to Desired Path vs Depth (Perturbed)')
+    plot4.set_xlabel('Depth')
+    plot4.set_ylabel('Average Distance')
+    plot4.set_xticks(perturbed_data['depth'].unique())  # Show only unique depth values on x-axis
+    
+    plot3.set_ylim(min_avg_distance, max_avg_distance+5)  # Set y-limits
+    plot4.set_ylim(min_avg_distance, max_avg_distance+5)  # Set y-limits
 
     plt.tight_layout()
     plt.show()
@@ -119,6 +146,21 @@ def plot_graphs(df, df_mean):
     plt.plot(df_sorted_time[df_sorted_time['condition'] == 'perturbed']['time_to_complete'], df_sorted_time[df_sorted_time['condition'] == 'perturbed']['avg_distance'], '-', color='orange', label='Perturbed')
     plt.xlabel('Time to complete')
     plt.ylabel('Average distance from desired path')
+    
+    # Step 3: Fit Polynomial Regression Model
+    degree = 3 # Define the degree of the polynomial
+    coefficients_normal = np.polyfit(df_sorted_time[df_sorted_time['condition'] == 'normal']['time_to_complete'], df_sorted_time[df_sorted_time['condition'] == 'normal']['avg_distance'], degree)
+    coefficients_perturbed = np.polyfit(df_sorted_time[df_sorted_time['condition'] == 'perturbed']['time_to_complete'], df_sorted_time[df_sorted_time['condition'] == 'perturbed']['avg_distance'], degree)
+
+    # Generate values for the regression curve
+    x_values_normal = np.linspace(df_sorted_time[df_sorted_time['condition'] == 'normal']['time_to_complete'].min(), df_sorted_time[df_sorted_time['condition'] == 'normal']['time_to_complete'].max(), 10)
+    y_values_normal = np.polyval(coefficients_normal, x_values_normal)
+    plt.plot(x_values_normal, y_values_normal, '--', color='blue', label=f'Normal {degree}nd degree polynomial regression')
+    
+    # Generate values for the regression curve
+    x_values_perturbed = np.linspace(df_sorted_time[df_sorted_time['condition'] == 'perturbed']['time_to_complete'].min(), df_sorted_time[df_sorted_time['condition'] == 'perturbed']['time_to_complete'].max(), 10)
+    y_values_perturbed = np.polyval(coefficients_perturbed, x_values_perturbed)
+    plt.plot(x_values_perturbed, y_values_perturbed, '--', color='orange', label=f'Perturbed {degree}nd degree polynomial regression')
     
     plt.legend()
     plt.tight_layout()
