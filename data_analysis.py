@@ -2,11 +2,20 @@ import os
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.interpolate import CubicSpline
-from scipy.optimize import curve_fit
+
 
 # Function to read and process CSV files
 def process_csv_files(folder_path):
+    """
+    Read and process CSV files in a folder.
+
+    Parameters:
+        folder_path (str): Path to the folder containing CSV files.
+
+    Returns:
+        DataFrame: Original DataFrame with data from all CSV files.
+        DataFrame: DataFrame with mean values grouped by depth and condition.
+    """
     data = {'depth': [], 'time_to_complete': [], 'avg_distance': [], 'condition': []}
 
     for filename in os.listdir(folder_path):
@@ -34,6 +43,17 @@ def process_csv_files(folder_path):
 
 # Function to split DataFrame into a certain number of parts
 def split_dataframe(df, num_parts, value):
+    """
+    Split DataFrame into multiple parts based on a certain column value.
+
+    Parameters:
+        df (DataFrame): DataFrame to split.
+        num_parts (int): Number of parts to split the DataFrame into.
+        value (str): Column name based on which DataFrame is to be split.
+
+    Returns:
+        list: List of DataFrames, each representing a part.
+    """
     parts = []
     data = df.sort_values(by=f'{value}', ascending=True)
     for depth in data['depth'].unique():
@@ -56,6 +76,13 @@ def split_dataframe(df, num_parts, value):
 
 # Function to plot graphs
 def plot_graphs(df, df_mean):
+    """
+    Plot various graphs based on provided DataFrame and its mean.
+
+    Parameters:
+        df (DataFrame): Original DataFrame with data from all CSV files.
+        df_mean (DataFrame): DataFrame with mean values grouped by depth and condition.
+    """
     plt.figure(figsize=(12, 12))
     
     # Seperate normal and perturbed data
@@ -66,11 +93,10 @@ def plot_graphs(df, df_mean):
     min_time = min(normal_data['time_to_complete'].min(), perturbed_data['time_to_complete'].min())
     max_time = max(normal_data['time_to_complete'].max(), perturbed_data['time_to_complete'].max())    
 
-
     # Plot time to complete vs depth for normal data
     plot1 = plt.subplot(2, 2, 1)
     bar_width = 20  # Adjust the width of the bars
-    segmentation = 3 # please only use odd segmentation :D
+    segmentation = 1 if len(df) < 16 else 3 # please only use odd segmentation :D
     offset = bar_width / (segmentation)
     plot1.bar(normal_data['depth'], normal_data['time_to_complete'], color='blue', width=bar_width, alpha=0.7) # Make slightly opaque
     split_normal_time = split_dataframe(df[df['condition'] == 'normal'], segmentation, 'time_to_complete')
@@ -168,9 +194,20 @@ def plot_graphs(df, df_mean):
 
 # Main function
 def main(folder_path):
+    """
+    Main function to process CSV files and plot graphs.
+
+    Parameters:
+        folder_path (str): Path to the folder containing CSV files.
+    """
+    # Process CSV files
     df, df_mean = process_csv_files(folder_path)
+
+    # Sort DataFrames by depth in ascending order
     df_mean.sort_values(by='depth', ascending=True, inplace=True)
     df.sort_values(by='depth', ascending=True, inplace=True)
+
+    # Plot graphs
     plot_graphs(df, df_mean)
 
 if __name__ == "__main__":
