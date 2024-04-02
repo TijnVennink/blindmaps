@@ -683,14 +683,14 @@ if __name__ == "__main__":
     # Plot data on each subplot
     for d in range(len(data)):
         for i in range(len(data[d][1]) - 1):
-            axs[d//3, d%3].plot(data[d][1][i:i + 2, 0], -data[d][1][i:i + 2, 1], "red", label="Segment" if i == 0 else None)
+            axs[d//3, d%3].plot(data[d][1][i:i + 2, 0], -data[d][1][i:i + 2, 1], "red", label="Path" if i == 0 else None)
         if data[d][0].size != 0:
-            axs[d//3, d%3].plot(data[d][0][:, 1], -data[d][0][:, 2], "lime", label="CONTROLLER")
+            axs[d//3, d%3].plot(data[d][0][:, 1], -data[d][0][:, 2], "lime", label="Controller")
         else:
-            axs[d//3, d%3].plot(300, 200, "lime", label="CONTROLLER")
+            axs[d//3, d%3].plot(300, 200, "lime", label="Controller")
         axs[d//3, d%3].axis('equal')
         axs[d//3, d%3].set_xlabel("x")
-        axs[d//3, d%3].set_ylabel("y [m")
+        axs[d//3, d%3].set_ylabel("y [m]")
         axs[d//3, d%3].legend()
         axs[d//3, d%3].set_title(f'Plot {d + 1}, Depth: {depths_list[d%3]}')
     
